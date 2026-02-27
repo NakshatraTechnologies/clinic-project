@@ -1,0 +1,48 @@
+# ====================================
+# Deploy to STAGING
+# Triggers: Push to 'staging' branch
+# ====================================
+
+name: Deploy to Staging
+
+on:
+  push:
+    branches:
+      - staging
+
+jobs:
+  deploy-staging:
+    name: 🧪 Deploy to Staging Server
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🚀 Deploy to EC2 via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -e
+            echo "🔄 Deploying STAGING..."
+
+            cd /opt/clinic
+
+            # Pull latest staging code
+            git fetch origin staging
+            git checkout staging
+            git pull origin staging
+
+            # Rebuild & restart staging containers
+            docker compose -f docker-compose.staging.yml down
+            docker compose -f docker-compose.staging.yml up -d --build
+
+            # Cleanup old images
+            docker image prune -f
+
+            # Show status
+            echo "✅ Staging deployment complete!"
+            docker ps --filter "name=clinic-*-staging"

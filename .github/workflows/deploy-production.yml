@@ -1,0 +1,48 @@
+# ====================================
+# Deploy to PRODUCTION
+# Triggers: Push to 'main' branch
+# ====================================
+
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy-production:
+    name: 🚀 Deploy to Production Server
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🚀 Deploy to EC2 via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -e
+            echo "🔄 Deploying PRODUCTION..."
+
+            cd /opt/clinic
+
+            # Pull latest main code
+            git fetch origin main
+            git checkout main
+            git pull origin main
+
+            # Rebuild & restart production containers
+            docker compose -f docker-compose.prod.yml down
+            docker compose -f docker-compose.prod.yml up -d --build
+
+            # Cleanup old images
+            docker image prune -f
+
+            # Show status
+            echo "✅ Production deployment complete!"
+            docker ps --filter "name=clinic-*-prod"
