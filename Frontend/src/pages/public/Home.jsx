@@ -94,7 +94,7 @@ const Home = () => {
                   background: 'linear-gradient(90deg, #60a5fa, #34d399)',
                   WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent'
                 }}>Our Priority</span>
-                <br />Find & Book Doctors Instantly
+                <br />Find & Book Doctor Instantly
               </h1>
               <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '1.125rem', maxWidth: '520px', marginBottom: '2rem', lineHeight: 1.7 }}>
                 Search verified specialists, compare fees, read reviews, and book appointments — all in under 2 minutes.
