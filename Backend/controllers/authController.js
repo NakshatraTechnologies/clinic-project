@@ -51,8 +51,9 @@ const sendOTP = async (req, res) => {
     res.status(200).json({
       success: true,
       message: 'OTP sent successfully',
-      // Remove this in production — only for development testing
-      ...(process.env.NODE_ENV === 'development' && { otp: otpCode }),
+      // Since there is no real SMS service integrated yet, always send OTP in response so it's visible on frontend
+      // TODO: Remove this once a real SMS service is integrated, or restrict to development only
+      otp: otpCode,
     });
   } catch (error) {
     console.error('Send OTP Error:', error);
