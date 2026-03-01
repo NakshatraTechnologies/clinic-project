@@ -77,6 +77,11 @@ const prescriptionSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    status: {
+      type: String,
+      enum: ['DRAFT', 'FINAL'],
+      default: 'DRAFT',
+    },
   },
   {
     timestamps: true,
@@ -87,5 +92,6 @@ const prescriptionSchema = new mongoose.Schema(
 prescriptionSchema.index({ doctorId: 1 });
 prescriptionSchema.index({ patientId: 1 });
 prescriptionSchema.index({ appointmentId: 1 });
+prescriptionSchema.index({ appointmentId: 1, status: 1 });
 
 module.exports = mongoose.model('Prescription', prescriptionSchema);

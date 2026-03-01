@@ -28,11 +28,12 @@ const getDashboardStats = async (req, res) => {
     // Stats counts
     const todayStats = {
       total: todayAppointments.length,
+      booked: todayAppointments.filter((a) => a.status === 'booked').length,
       pending: todayAppointments.filter((a) => a.status === 'pending').length,
       confirmed: todayAppointments.filter((a) => a.status === 'confirmed').length,
       completed: todayAppointments.filter((a) => a.status === 'completed').length,
       cancelled: todayAppointments.filter((a) => a.status === 'cancelled').length,
-      noShow: todayAppointments.filter((a) => a.status === 'no-show').length,
+      noShow: todayAppointments.filter((a) => a.status === 'no-show' || a.status === 'no_show').length,
     };
 
     // Revenue calculations
@@ -56,6 +57,22 @@ const getDashboardStats = async (req, res) => {
       0
     );
 
+    // Upcoming appointments (next 7 days, excluding today)
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const nextWeek = new Date(today);
+    nextWeek.setDate(nextWeek.getDate() + 7);
+    nextWeek.setHours(23, 59, 59, 999);
+
+    const upcomingAppointments = await Appointment.find({
+      doctorId,
+      date: { $gte: tomorrow, $lte: nextWeek },
+      status: { $nin: ['cancelled', 'no_show'] },
+    })
+      .populate('patientId', 'name phone')
+      .sort({ date: 1, startTime: 1 })
+      .limit(20);
+
     // Total unique patients
     const totalPatients = await Appointment.distinct('patientId', { doctorId });
 
@@ -77,6 +94,7 @@ const getDashboardStats = async (req, res) => {
           pendingPayments,
           appointments: todayAppointments,
         },
+        upcoming: upcomingAppointments,
         monthly: {
           revenue: monthlyRevenue,
         },

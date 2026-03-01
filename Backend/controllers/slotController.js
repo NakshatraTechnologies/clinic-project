@@ -179,10 +179,16 @@ const getSlots = async (req, res) => {
       });
     }
 
-    // Don't allow past dates
+    // Convert both to local date strings (YYYY-MM-DD) to compare precisely without timezone hour drift
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    if (targetDate < today) {
+    
+    // We get the local date parts rather than relying on UTC ISOString which might lag/lead by hours
+    const tzOffset = today.getTimezoneOffset() * 60000;
+    const localToday = new Date(today.getTime() - tzOffset).toISOString().split('T')[0];
+    
+    console.log(`[SLOTS API] Checking Past Date. Incoming Date: ${date} | Server Local Today: ${localToday}`);
+
+    if (date < localToday) {
       return res.status(400).json({
         success: false,
         message: 'Cannot view slots for past dates',
@@ -257,6 +263,8 @@ const getSlots = async (req, res) => {
       // Normal weekly schedule
       slotData = getAvailableSlots(doctorProfile, targetDate, bookedAppointments);
     }
+    
+    console.log(`[SLOTS API] Returning ${slotData.availableSlots?.length} available slots for ${date}`);
 
     res.status(200).json({
       success: true,

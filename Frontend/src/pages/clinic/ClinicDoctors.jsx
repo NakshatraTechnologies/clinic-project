@@ -21,6 +21,12 @@ const ClinicDoctors = () => {
   };
   const [form, setForm] = useState(emptyForm);
 
+  const daysOptions = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+
+  const emptyAvailability = daysOptions.map(day => ({ day, isAvailable: false, slots: [] }));
+  
+  const [availability, setAvailability] = useState(emptyAvailability);
+
   useEffect(() => { fetchDoctors(); }, [page, search]);
 
   const fetchDoctors = async () => {
@@ -40,6 +46,7 @@ const ClinicDoctors = () => {
   const openAdd = () => {
     setEditingId(null);
     setForm(emptyForm);
+    setAvailability(emptyAvailability);
     setMsg('');
     setShowModal(true);
   };
@@ -59,6 +66,18 @@ const ClinicDoctors = () => {
       bio: p?.bio || '',
       licenseNumber: p?.licenseNumber || '',
     });
+    
+    // Set availability if available, otherwise use empty template
+    if (p && p.availability && p.availability.length > 0) {
+      const mergedAvail = daysOptions.map((day) => {
+        const existing = p.availability.find((a) => a.day === day);
+        return existing || { day, isAvailable: false, slots: [] };
+      });
+      setAvailability(mergedAvail);
+    } else {
+      setAvailability(emptyAvailability);
+    }
+    
     setMsg('');
     setShowModal(true);
   };
@@ -79,6 +98,7 @@ const ClinicDoctors = () => {
         slotDuration: Number(form.slotDuration) || 15,
         bio: form.bio,
         licenseNumber: form.licenseNumber,
+        availability: availability,
       };
 
       if (editingId) {
@@ -107,6 +127,43 @@ const ClinicDoctors = () => {
       setMsg(err.response?.data?.message || 'Failed to delete');
       setDeleteConfirm(null);
     }
+  };
+
+  // Schedule Builder Handlers
+  const toggleDay = (dayIndex) => {
+    setAvailability((prev) => prev.map((a, i) =>
+      i === dayIndex ? { ...a, isAvailable: !a.isAvailable } : a
+    ));
+  };
+
+  const addSlot = (dayIndex) => {
+    setAvailability((prev) => prev.map((a, i) =>
+      i === dayIndex ? { ...a, slots: [...a.slots, { startTime: '09:00', endTime: '13:00' }] } : a
+    ));
+  };
+
+  const removeSlot = (dayIndex, slotIndex) => {
+    setAvailability((prev) => prev.map((a, i) =>
+      i === dayIndex ? { ...a, slots: a.slots.filter((_, si) => si !== slotIndex) } : a
+    ));
+  };
+
+  const updateSlotTime = (dayIndex, slotIndex, field, value) => {
+    setAvailability((prev) => prev.map((a, i) =>
+      i === dayIndex ? {
+        ...a,
+        slots: a.slots.map((s, si) => si === slotIndex ? { ...s, [field]: value } : s)
+      } : a
+    ));
+  };
+
+  const applyQuickSetup = () => {
+    const defaultSlots = [{ startTime: '09:00', endTime: '13:00' }, { startTime: '17:00', endTime: '21:00' }];
+    setAvailability(daysOptions.map(day => ({
+      day,
+      isAvailable: day !== 'sunday',
+      slots: day !== 'sunday' ? [...defaultSlots] : []
+    })));
   };
 
   return (
@@ -285,7 +342,51 @@ const ClinicDoctors = () => {
                   <label style={{ fontWeight: 600, fontSize: '0.875rem', marginBottom: '0.375rem', display: 'block' }}>License Number</label>
                   <input type="text" className="form-control" value={form.licenseNumber} onChange={e => setForm({ ...form, licenseNumber: e.target.value })} placeholder="MCI Reg. No." />
                 </div>
-                <div className="col-12">
+                
+                {/* Schedule & Availability Section */}
+                <div className="col-12 mt-4 pt-3" style={{ borderTop: '1px dashed var(--border)' }}>
+                  <div className="d-flex justify-content-between align-items-center mb-3">
+                    <h6 style={{ fontWeight: 700, margin: 0, color: 'var(--primary)' }}>
+                      <span className="material-symbols-outlined align-middle me-2">calendar_month</span>
+                      Schedule & Availability
+                    </h6>
+                    <button type="button" className="btn btn-sm btn-outline-primary" onClick={applyQuickSetup} style={{ fontSize: '0.75rem', borderRadius: '16px' }}>
+                      <span className="material-symbols-outlined align-middle me-1" style={{ fontSize: '14px' }}>bolt</span>
+                      Quick Setup (Mon-Sat)
+                    </button>
+                  </div>
+                  
+                  <div className="availability-builder" style={{ maxHeight: '300px', overflowY: 'auto', paddingRight: '5px' }}>
+                    {availability.map((day, dayIndex) => (
+                      <div key={day.day} className="mb-2 p-2" style={{ background: day.isAvailable ? '#f0fdf4' : 'var(--bg-light)', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                        <div className="d-flex align-items-center justify-content-between mb-1">
+                          <div className="d-flex align-items-center gap-2">
+                            <div className="form-check form-switch m-0">
+                              <input className="form-check-input mt-0" type="checkbox" checked={day.isAvailable} onChange={() => toggleDay(dayIndex)} style={{ cursor: 'pointer' }} />
+                            </div>
+                            <span style={{ fontWeight: day.isAvailable ? 700 : 500, textTransform: 'capitalize', fontSize: '0.85rem' }}>{day.day}</span>
+                          </div>
+                          {day.isAvailable && (
+                            <button type="button" className="btn btn-sm btn-link text-primary p-0 text-decoration-none" onClick={() => addSlot(dayIndex)} style={{ fontSize: '0.75rem', fontWeight: 600 }}>
+                              + Add Slot
+                            </button>
+                          )}
+                        </div>
+
+                        {day.isAvailable && day.slots?.map((slot, slotIndex) => (
+                          <div key={slotIndex} className="d-flex align-items-center gap-2 mb-1 ms-4 ps-2" style={{ fontSize: '0.8rem' }}>
+                            <input type="time" className="form-control form-control-sm" value={slot.startTime} onChange={(e) => updateSlotTime(dayIndex, slotIndex, 'startTime', e.target.value)} style={{ width: '110px' }} required />
+                            <span style={{ color: 'var(--text-muted)' }}>to</span>
+                            <input type="time" className="form-control form-control-sm" value={slot.endTime} onChange={(e) => updateSlotTime(dayIndex, slotIndex, 'endTime', e.target.value)} style={{ width: '110px' }} required />
+                            <button type="button" className="btn btn-sm btn-outline-danger p-1" onClick={() => removeSlot(dayIndex, slotIndex)} style={{ lineHeight: 1 }}><span className="material-symbols-outlined" style={{ fontSize: '14px' }}>close</span></button>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="col-12 mt-3 pt-3" style={{ borderTop: '1px dashed var(--border)' }}>
                   <label style={{ fontWeight: 600, fontSize: '0.875rem', marginBottom: '0.375rem', display: 'block' }}>Bio</label>
                   <textarea className="form-control" rows={2} value={form.bio} onChange={e => setForm({ ...form, bio: e.target.value })} placeholder="Short professional bio..." />
                 </div>

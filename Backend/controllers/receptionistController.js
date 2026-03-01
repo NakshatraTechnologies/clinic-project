@@ -209,22 +209,28 @@ const collectPayment = async (req, res) => {
 const getTodaySummary = async (req, res) => {
   try {
     let doctorId;
-    if (req.user.role === 'receptionist') {
-      doctorId = req.user.createdBy;
-    } else if (req.user.role === 'doctor') {
+    if (req.user.role === 'doctor') {
       doctorId = req.user._id;
     }
+    // For receptionist, createdBy points to clinic admin, not doctor
+    // Use clinicId to see all clinic appointments instead
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const endOfDay = new Date();
     endOfDay.setHours(23, 59, 59, 999);
 
-    const appointments = await Appointment.find({
-      doctorId,
-      date: { $gte: today, $lte: endOfDay },
-    })
+    // Build filter: use doctorId if available, otherwise clinicId
+    const filter = { date: { $gte: today, $lte: endOfDay } };
+    if (doctorId) {
+      filter.doctorId = doctorId;
+    } else if (req.user.clinicId) {
+      filter.clinicId = req.user.clinicId;
+    }
+
+    const appointments = await Appointment.find(filter)
       .populate('patientId', 'name phone gender')
+      .populate('doctorId', 'name phone')
       .sort({ startTime: 1 });
 
     // Payment stats
