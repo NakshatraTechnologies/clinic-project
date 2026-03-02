@@ -11,14 +11,20 @@ const {
   getPatientPrescriptions,
   downloadPrescriptionPDF,
   getDoctorPrescriptions,
+  finalizePrescription,
+  getMyPrescriptions,
 } = require('../controllers/prescriptionController');
 
 // All routes require authentication
 router.use(protect);
 
+// Patient's own prescriptions (must be before /:id to avoid conflict)
+router.get('/me', getMyPrescriptions);
+
 // Doctor-only routes
 router.post('/', authorize('doctor'), createPrescription);
 router.put('/:id', authorize('doctor'), updatePrescription);
+router.patch('/:id/finalize', authorize('doctor'), finalizePrescription);
 router.get('/doctor/all', authorize('doctor'), getDoctorPrescriptions);
 
 // Doctor + Patient routes
@@ -28,3 +34,4 @@ router.get('/appointment/:appointmentId', getPrescriptionByAppointment);
 router.get('/patient/:patientId', getPatientPrescriptions);
 
 module.exports = router;
+

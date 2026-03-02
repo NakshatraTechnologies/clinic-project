@@ -60,6 +60,8 @@ export const updateAvailability = (data) => api.put('/slots/availability', data)
 export const createPrescription = (data) => api.post('/prescriptions', data);
 export const getDoctorPrescriptions = (params) => api.get('/prescriptions/doctor/all', { params });
 export const getPrescriptionByAppointment = (appointmentId) => api.get(`/prescriptions/appointment/${appointmentId}`);
+export const finalizePrescription = (id) => api.patch(`/prescriptions/${id}/finalize`);
+export const getMyOwnPrescriptions = (params) => api.get('/prescriptions/me', { params });
 
 // Receptionist APIs (for doctor)
 export const createReceptionist = (data) => api.post('/auth/create-receptionist', data);

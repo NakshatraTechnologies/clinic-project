@@ -25,13 +25,14 @@ const DocDashboardHome = () => {
   if (loading) return <div className="text-center py-5"><div className="spinner-border text-primary"></div></div>;
 
   const today = dashboard?.today || {};
+  const upcoming = dashboard?.upcoming || [];
   const monthly = dashboard?.monthly || {};
   const overall = dashboard?.overall || {};
   const queue = dashboard?.queue;
 
   const statCards = [
     { icon: 'event_available', label: "Today's Appointments", value: today.total || 0, color: '#137fec', bg: '#e8f2fd' },
-    { icon: 'pending_actions', label: 'Pending', value: today.pending || 0, color: '#f59e0b', bg: '#fef3c7' },
+    { icon: 'bookmark_added', label: 'Booked', value: (today.booked || 0) + (today.pending || 0), color: '#0891b2', bg: '#cffafe' },
     { icon: 'check_circle', label: 'Completed', value: today.completed || 0, color: '#22c55e', bg: '#dcfce7' },
     { icon: 'currency_rupee', label: "Today's Revenue", value: `₹${(today.revenue || 0).toLocaleString()}`, color: '#7c3aed', bg: '#ede9fe' },
     { icon: 'trending_up', label: 'Monthly Revenue', value: `₹${(monthly.revenue || 0).toLocaleString()}`, color: '#0ea5e9', bg: '#e0f2fe' },
@@ -40,11 +41,15 @@ const DocDashboardHome = () => {
 
   const getStatusBadge = (status) => {
     const map = {
+      booked: { bg: '#cffafe', color: '#155e75', label: 'Booked' },
       pending: { bg: '#fef3c7', color: '#92400e', label: 'Pending' },
       confirmed: { bg: '#dbeafe', color: '#1e40af', label: 'Confirmed' },
+      checked_in: { bg: '#fef3c7', color: '#92400e', label: 'Checked In' },
+      in_consultation: { bg: '#ede9fe', color: '#7c3aed', label: 'In Consultation' },
       completed: { bg: '#dcfce7', color: '#166534', label: 'Completed' },
       cancelled: { bg: '#fee2e2', color: '#991b1b', label: 'Cancelled' },
       'no-show': { bg: '#f3f4f6', color: '#374151', label: 'No Show' },
+      no_show: { bg: '#f3f4f6', color: '#374151', label: 'No Show' },
     };
     const s = map[status] || map.pending;
     return <span className="badge" style={{ background: s.bg, color: s.color }}>{s.label}</span>;
@@ -156,6 +161,43 @@ const DocDashboardHome = () => {
               </div>
             )}
           </div>
+
+          {/* Upcoming Appointments */}
+          {upcoming.length > 0 && (
+            <div className="card p-4 mt-3" style={{ border: '1px solid var(--border)' }}>
+              <h5 style={{ fontWeight: 700, marginBottom: '1rem' }}>
+                <span className="material-symbols-outlined me-2" style={{ color: '#0891b2' }}>upcoming</span>
+                Upcoming ({upcoming.length})
+              </h5>
+              <div className="table-responsive">
+                <table className="table table-hover mb-0" style={{ fontSize: '0.875rem' }}>
+                  <thead>
+                    <tr style={{ color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: 600 }}>
+                      <th style={{ border: 0, padding: '0.5rem 0.75rem' }}>DATE</th>
+                      <th style={{ border: 0, padding: '0.5rem 0.75rem' }}>TIME</th>
+                      <th style={{ border: 0, padding: '0.5rem 0.75rem' }}>PATIENT</th>
+                      <th style={{ border: 0, padding: '0.5rem 0.75rem' }}>STATUS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {upcoming.map((apt) => (
+                      <tr key={apt._id}>
+                        <td style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
+                          {new Date(apt.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                        </td>
+                        <td style={{ whiteSpace: 'nowrap' }}>{formatTime(apt.startTime)}</td>
+                        <td>
+                          <div style={{ fontWeight: 600 }}>{apt.patientId?.name || 'Patient'}</div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{apt.patientId?.phone}</div>
+                        </td>
+                        <td>{getStatusBadge(apt.status)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Quick Actions */}

@@ -3,6 +3,18 @@ const Clinic = require('../models/Clinic');
 const DoctorProfile = require('../models/DoctorProfile');
 const Appointment = require('../models/Appointment');
 
+// Helper: ensure isAvailable days always have at least one time slot
+const DEFAULT_SLOTS = [{ startTime: '09:00', endTime: '13:00' }, { startTime: '17:00', endTime: '21:00' }];
+const sanitizeAvailability = (availability) => {
+  if (!Array.isArray(availability)) return availability;
+  return availability.map(day => {
+    if (day.isAvailable && (!day.slots || day.slots.length === 0)) {
+      return { ...day, slots: [...DEFAULT_SLOTS] };
+    }
+    return day;
+  });
+};
+
 // ==========================================
 // SUPER ADMIN — Clinic CRUD
 // ==========================================
@@ -396,7 +408,17 @@ const addDoctor = async (req, res) => {
       clinicName: clinicName || '',
       clinicAddress: clinicAddress || {},
       licenseNumber: licenseNumber || '',
-      availability: availability || [],
+      availability: sanitizeAvailability(
+        availability && availability.length > 0 ? availability : [
+          { day: 'monday', isAvailable: true, slots: [...DEFAULT_SLOTS] },
+          { day: 'tuesday', isAvailable: true, slots: [...DEFAULT_SLOTS] },
+          { day: 'wednesday', isAvailable: true, slots: [...DEFAULT_SLOTS] },
+          { day: 'thursday', isAvailable: true, slots: [...DEFAULT_SLOTS] },
+          { day: 'friday', isAvailable: true, slots: [...DEFAULT_SLOTS] },
+          { day: 'saturday', isAvailable: true, slots: [...DEFAULT_SLOTS] },
+          { day: 'sunday', isAvailable: false, slots: [] }
+        ]
+      ),
       isApproved: true, // Clinic admin adds → auto-approved
     });
 
@@ -579,7 +601,7 @@ const updateDoctor = async (req, res) => {
   try {
     const clinicId = req.user.clinicId;
     const { id } = req.params;
-    const { name, phone, email, specialization, qualifications, experience, consultationFee, slotDuration, bio, licenseNumber } = req.body;
+    const { name, phone, email, specialization, qualifications, experience, consultationFee, slotDuration, bio, licenseNumber, availability } = req.body;
 
     const doctorUser = await User.findOne({ _id: id, clinicId, role: 'doctor' });
     if (!doctorUser) {
@@ -601,6 +623,7 @@ const updateDoctor = async (req, res) => {
       if (slotDuration) profile.slotDuration = Number(slotDuration);
       if (bio !== undefined) profile.bio = bio;
       if (licenseNumber !== undefined) profile.licenseNumber = licenseNumber;
+      if (availability && Array.isArray(availability)) profile.availability = sanitizeAvailability(availability);
       await profile.save();
     }
 

@@ -1,0 +1,72 @@
+[
+  {
+    "step": "SuperAdmin Login",
+    "status": true,
+    "expected": "Receive Token",
+    "actual": "Success",
+    "error": null
+  },
+  {
+    "step": "SuperAdmin Creates Clinic & Admin",
+    "status": true,
+    "expected": "Clinic and Admin returned",
+    "actual": "Success",
+    "error": null
+  },
+  {
+    "step": "ClinicAdmin Login",
+    "status": true,
+    "expected": "Receive Token",
+    "actual": "Success",
+    "error": null
+  },
+  {
+    "step": "ClinicAdmin Creates Doctor",
+    "status": true,
+    "expected": "Doctor Profile returned",
+    "actual": "Success",
+    "error": null
+  },
+  {
+    "step": "ClinicAdmin Creates Receptionist",
+    "status": true,
+    "expected": "Receptionist returned",
+    "actual": "Success",
+    "error": null
+  },
+  {
+    "step": "Patient Registration/Login",
+    "status": true,
+    "expected": "Account linked",
+    "actual": "Success",
+    "error": null
+  },
+  {
+    "step": "Patient Profile Update",
+    "status": true,
+    "expected": "Profile updated with Name & Blood Group",
+    "actual": "Success",
+    "error": null
+  },
+  {
+    "step": "Patient Searches Public Doctors",
+    "status": true,
+    "expected": "Array of approved doctors",
+    "actual": "Count: 9",
+    "error": null
+  },
+  {
+    "step": "Doctor Login",
+    "status": true,
+    "expected": "Doctor token received",
+    "actual": "Success",
+    "error": null
+  },
+  {
+    "step": "Doctor Fetches Appointments/Slots",
+    "status": false,
+    "expected": "Slots returned",
+    "actual": "Failed",
+    "error": "Cannot view slots for past dates"
+  }
+]

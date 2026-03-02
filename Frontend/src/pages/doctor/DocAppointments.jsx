@@ -38,11 +38,15 @@ const DocAppointments = () => {
 
   const getStatusBadge = (status) => {
     const map = {
+      booked: { bg: '#cffafe', color: '#155e75', label: 'Booked' },
       pending: { bg: '#fef3c7', color: '#92400e', label: 'Pending' },
       confirmed: { bg: '#dbeafe', color: '#1e40af', label: 'Confirmed' },
+      checked_in: { bg: '#fef3c7', color: '#92400e', label: 'Checked In' },
+      in_consultation: { bg: '#ede9fe', color: '#7c3aed', label: 'In Consultation' },
       completed: { bg: '#dcfce7', color: '#166534', label: 'Completed' },
       cancelled: { bg: '#fee2e2', color: '#991b1b', label: 'Cancelled' },
       'no-show': { bg: '#f3f4f6', color: '#374151', label: 'No Show' },
+      no_show: { bg: '#f3f4f6', color: '#374151', label: 'No Show' },
     };
     const s = map[status] || map.pending;
     return <span className="badge" style={{ background: s.bg, color: s.color }}>{s.label}</span>;
@@ -57,6 +61,7 @@ const DocAppointments = () => {
 
   const filters = [
     { key: 'all', label: 'All', icon: 'list' },
+    { key: 'booked', label: 'Booked', icon: 'bookmark_added' },
     { key: 'pending', label: 'Pending', icon: 'pending_actions' },
     { key: 'confirmed', label: 'Confirmed', icon: 'event_available' },
     { key: 'completed', label: 'Completed', icon: 'check_circle' },

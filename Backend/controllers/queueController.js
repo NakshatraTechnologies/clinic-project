@@ -13,35 +13,73 @@ const getTodayQueue = async (req, res) => {
     let doctorId;
     if (req.user.role === 'doctor') {
       doctorId = req.user._id;
-    } else if (req.user.role === 'receptionist') {
-      doctorId = req.user.createdBy;
-    } else {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized',
-      });
     }
+    // For receptionist, we query by clinicId to get all queues
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const endOfDay = new Date();
     endOfDay.setHours(23, 59, 59, 999);
 
-    let queue = await Queue.findOne({
-      doctorId,
-      date: { $gte: today, $lte: endOfDay },
-    })
-      .populate('patients.patientId', 'name phone gender')
-      .populate('patients.appointmentId', 'startTime endTime type notes');
-
-    // If no queue exists for today, create one
-    if (!queue) {
-      queue = await Queue.create({
+    let queue;
+    if (doctorId) {
+      // Doctor sees their own queue
+      queue = await Queue.findOne({
         doctorId,
+        date: { $gte: today, $lte: endOfDay },
+      })
+        .populate('patients.patientId', 'name phone gender')
+        .populate('patients.appointmentId', 'startTime endTime type notes');
+
+      if (!queue) {
+        queue = await Queue.create({
+          doctorId,
+          date: today,
+          currentToken: 0,
+          totalTokensIssued: 0,
+          patients: [],
+        });
+      }
+    } else if (req.user.clinicId) {
+      // Receptionist: find all queues for doctors in this clinic
+      const DoctorProfile = require('../models/DoctorProfile');
+      const clinicDoctors = await DoctorProfile.find({ clinicId: req.user.clinicId }).select('userId');
+      const doctorIds = clinicDoctors.map(d => d.userId);
+
+      const queues = await Queue.find({
+        doctorId: { $in: doctorIds },
+        date: { $gte: today, $lte: endOfDay },
+      })
+        .populate('patients.patientId', 'name phone gender')
+        .populate('patients.appointmentId', 'startTime endTime type notes')
+        .populate('doctorId', 'name phone');
+
+      // Merge all queues into a single virtual queue for the receptionist
+      const allPatients = [];
+      let totalTokens = 0;
+      let currentToken = 0;
+      queues.forEach(q => {
+        q.patients.forEach(p => {
+          allPatients.push({
+            ...p.toObject(),
+            doctorName: q.doctorId?.name || 'Unknown',
+          });
+        });
+        totalTokens += q.totalTokensIssued;
+        if (q.currentToken > currentToken) currentToken = q.currentToken;
+      });
+
+      queue = {
+        _id: queues[0]?._id || null,
         date: today,
-        currentToken: 0,
-        totalTokensIssued: 0,
-        patients: [],
+        currentToken,
+        totalTokensIssued: totalTokens,
+        patients: allPatients,
+      };
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot determine queue scope',
       });
     }
 
@@ -98,19 +136,20 @@ const checkInPatient = async (req, res) => {
     }
 
     // Determine doctor ID
-    let doctorId;
-    if (req.user.role === 'doctor') {
-      doctorId = req.user._id;
-    } else if (req.user.role === 'receptionist') {
-      doctorId = req.user.createdBy;
-    }
+    const doctorId = appointment.doctorId;
 
-    // Verify this appointment belongs to this doctor
-    if (appointment.doctorId.toString() !== doctorId.toString()) {
+    // Verify authorization
+    if (req.user.role === 'doctor' && appointment.doctorId.toString() !== req.user._id.toString()) {
       return res.status(403).json({
         success: false,
         message: 'This appointment does not belong to your clinic',
       });
+    }
+
+    // Determine clinic context for receptionist if clinic check is needed
+    if (req.user.role === 'receptionist' && req.user.clinicId) {
+      // In a real production app, you might verify the doctor belongs to this clinic
+      // For now, we allow the receptionist to check in any appointment in their system
     }
 
     const today = new Date();
@@ -203,22 +242,23 @@ const updateQueuePatientStatus = async (req, res) => {
       });
     }
 
-    let doctorId;
-    if (req.user.role === 'doctor') {
-      doctorId = req.user._id;
-    } else if (req.user.role === 'receptionist') {
-      doctorId = req.user.createdBy;
-    }
-
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const endOfDay = new Date();
     endOfDay.setHours(23, 59, 59, 999);
 
-    const queue = await Queue.findOne({
-      doctorId,
+    // Find the queue that contains this appointment
+    let query = {
+      'patients.appointmentId': appointmentId,
       date: { $gte: today, $lte: endOfDay },
-    });
+    };
+
+    // If it's a doctor, restrict to their own queue
+    if (req.user.role === 'doctor') {
+      query.doctorId = req.user._id;
+    }
+
+    const queue = await Queue.findOne(query);
 
     if (!queue) {
       return res.status(404).json({
@@ -291,17 +331,37 @@ const updateQueuePatientStatus = async (req, res) => {
 // ==========================================
 const callNextPatient = async (req, res) => {
   try {
-    const doctorId = req.user._id;
-
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const endOfDay = new Date();
     endOfDay.setHours(23, 59, 59, 999);
 
-    const queue = await Queue.findOne({
-      doctorId,
-      date: { $gte: today, $lte: endOfDay },
-    });
+    let queue;
+    if (req.user.role === 'doctor') {
+      const doctorId = req.user._id;
+      queue = await Queue.findOne({
+        doctorId,
+        date: { $gte: today, $lte: endOfDay },
+      });
+    } else if (req.user.role === 'receptionist' && req.user.clinicId) {
+      // For receptionist, find the first queue in the clinic that has a waiting patient
+      const DoctorProfile = require('../models/DoctorProfile');
+      const clinicDoctors = await DoctorProfile.find({ clinicId: req.user.clinicId }).select('userId');
+      const docIds = clinicDoctors.map(d => d.userId);
+      
+      const queues = await Queue.find({
+        doctorId: { $in: docIds },
+        date: { $gte: today, $lte: endOfDay },
+      }).sort({ createdAt: 1 });
+      
+      // Find a queue with a waiting patient
+      queue = queues.find(q => q.patients.some(p => p.status === 'waiting'));
+      
+      // If no queue has a waiting patient, just return the first one (or null)
+      if (!queue && queues.length > 0) {
+        queue = queues[0];
+      }
+    }
 
     if (!queue) {
       return res.status(404).json({

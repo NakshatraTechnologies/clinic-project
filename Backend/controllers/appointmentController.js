@@ -50,6 +50,10 @@ const bookAppointment = async (req, res) => {
       });
     }
 
+    // Get doctor's clinicId for multi-tenant scoping
+    const doctorUser = await User.findById(doctorId).select('clinicId');
+    const clinicId = doctorUser?.clinicId || null;
+
     // Validate the date
     const targetDate = new Date(date);
     if (isNaN(targetDate.getTime())) {
@@ -126,10 +130,11 @@ const bookAppointment = async (req, res) => {
     const appointment = await Appointment.create({
       patientId: actualPatientId,
       doctorId,
+      clinicId,
       date: startOfDay,
       startTime,
       endTime,
-      status: 'confirmed',
+      status: 'booked',
       type: bookingType,
       paymentStatus: 'pending',
       amount: doctorProfile.consultationFee,
@@ -140,7 +145,7 @@ const bookAppointment = async (req, res) => {
         performedBy: req.user._id,
         timestamp: new Date(),
         details: `Appointment booked (${bookingType}) for ${date} at ${startTime}`,
-        newValue: 'confirmed',
+        newValue: 'booked',
       }],
     });
 
@@ -207,8 +212,8 @@ const cancelAppointment = async (req, res) => {
       });
     }
 
-    // Cannot cancel already completed or cancelled
-    if (['completed', 'cancelled'].includes(appointment.status)) {
+    // Cannot cancel already completed, cancelled, or no_show
+    if (['completed', 'cancelled', 'no_show', 'no-show'].includes(appointment.status)) {
       return res.status(400).json({
         success: false,
         message: `Cannot cancel appointment with status: ${appointment.status}`,
@@ -305,8 +310,8 @@ const getDoctorAppointments = async (req, res) => {
     if (req.user.role === 'doctor') {
       doctorId = req.user._id;
     } else if (req.user.role === 'receptionist') {
-      // Receptionist sees their doctor's appointments
-      doctorId = req.user.createdBy;
+      // Receptionist sees all clinic appointments via clinicId
+      // (createdBy points to clinic admin, not doctor)
     } else {
       return res.status(403).json({
         success: false,
@@ -314,7 +319,19 @@ const getDoctorAppointments = async (req, res) => {
       });
     }
 
-    let filter = { doctorId };
+    let filter = {};
+
+    // Doctor uses their own ID; receptionist uses clinicId
+    if (doctorId) {
+      filter.doctorId = doctorId;
+    } else if (req.user.clinicId) {
+      filter.clinicId = req.user.clinicId;
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot determine which appointments to show',
+      });
+    }
 
     if (date && date !== 'all') {
       const startOfDay = new Date(date);
@@ -331,6 +348,7 @@ const getDoctorAppointments = async (req, res) => {
     const appointmentsList = await Appointment.find(filter)
       .populate('patientId', 'name phone email gender dateOfBirth bloodGroup allergies')
       .populate('bookedBy', 'name role')
+      .populate('doctorId', 'name phone')
       .sort({ date: 1, startTime: 1 })
       .skip((page - 1) * limit)
       .limit(parseInt(limit));
@@ -371,13 +389,18 @@ const updateAppointmentStatus = async (req, res) => {
       });
     }
 
-    // Status transition rules
+    // Status transition rules (full pipeline)
     const validTransitions = {
-      'pending': ['confirmed', 'cancelled'],
-      'confirmed': ['completed', 'cancelled', 'no-show'],
-      'completed': [],   // terminal
-      'cancelled': [],    // terminal
-      'no-show': [],      // terminal
+      'booked': ['checked_in', 'cancelled', 'no_show'],
+      'checked_in': ['in_consultation', 'cancelled', 'no_show'],
+      'in_consultation': ['prescription_created', 'completed', 'cancelled'],
+      'prescription_created': ['completed'],
+      'completed': [],          // terminal
+      'cancelled': [],          // terminal
+      'no_show': [],            // terminal
+      // Legacy status support
+      'pending': ['booked', 'checked_in', 'cancelled', 'no_show'],
+      'confirmed': ['checked_in', 'cancelled', 'no_show'],
     };
 
     if (status) {
@@ -395,7 +418,7 @@ const updateAppointmentStatus = async (req, res) => {
       // Add audit log
       addAuditLog(
         appointment,
-        status === 'no-show' ? 'no-show' : status,
+        status,
         req.user._id,
         `Status changed by ${req.user.role}`,
         oldStatus,
@@ -455,8 +478,8 @@ const rescheduleAppointment = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Appointment not found' });
     }
 
-    // Only pending or confirmed can be rescheduled
-    if (!['pending', 'confirmed'].includes(appointment.status)) {
+    // Only booked, checked_in, or legacy statuses can be rescheduled
+    if (!['booked', 'checked_in', 'pending', 'confirmed'].includes(appointment.status)) {
       return res.status(400).json({
         success: false,
         message: `Cannot reschedule appointment with status: ${appointment.status}`,

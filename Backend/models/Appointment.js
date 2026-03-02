@@ -33,10 +33,10 @@ const appointmentSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: {
-        values: ['pending', 'confirmed', 'completed', 'cancelled', 'no-show'],
+        values: ['booked', 'checked_in', 'in_consultation', 'prescription_created', 'completed', 'cancelled', 'no_show'],
         message: '{VALUE} is not a valid status',
       },
-      default: 'pending',
+      default: 'booked',
     },
     type: {
       type: String,
@@ -98,7 +98,7 @@ const appointmentSchema = new mongoose.Schema(
       {
         action: {
           type: String,
-          enum: ['created', 'confirmed', 'cancelled', 'rescheduled', 'completed', 'no-show', 'payment'],
+          enum: ['created', 'confirmed', 'cancelled', 'rescheduled', 'completed', 'no_show', 'payment', 'checked_in', 'in_consultation', 'prescription_created'],
         },
         performedBy: {
           type: mongoose.Schema.Types.ObjectId,
@@ -133,6 +133,8 @@ appointmentSchema.index({ doctorId: 1, date: 1 });
 appointmentSchema.index({ patientId: 1 });
 appointmentSchema.index({ status: 1 });
 appointmentSchema.index({ date: 1 });
+appointmentSchema.index({ clinicId: 1, doctorId: 1, date: 1 });
+appointmentSchema.index({ clinicId: 1, status: 1, date: 1 });
 
 // Compound index: prevent double booking same slot for same doctor
 appointmentSchema.index(

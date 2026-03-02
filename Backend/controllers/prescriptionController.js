@@ -60,20 +60,38 @@ const createPrescription = async (req, res) => {
       });
     }
 
-    // Check if prescription already exists for this appointment
-    const existingPrescription = await Prescription.findOne({ appointmentId });
-    if (existingPrescription) {
+    // Check if a FINAL prescription already exists for this appointment
+    const existingFinal = await Prescription.findOne({ appointmentId, status: 'FINAL' });
+    if (existingFinal) {
       return res.status(400).json({
         success: false,
-        message: 'Prescription already exists for this appointment. Use update instead.',
-        prescriptionId: existingPrescription._id,
+        message: 'A finalized prescription already exists for this appointment.',
+        prescriptionId: existingFinal._id,
       });
     }
 
-    // Create prescription
+    // If a DRAFT exists, update it instead of creating a new one
+    const existingDraft = await Prescription.findOne({ appointmentId, status: 'DRAFT' });
+    if (existingDraft) {
+      existingDraft.diagnosis = diagnosis || existingDraft.diagnosis;
+      existingDraft.symptoms = symptoms || existingDraft.symptoms;
+      existingDraft.medicines = medicines;
+      existingDraft.labTests = labTests || existingDraft.labTests;
+      existingDraft.notes = notes !== undefined ? notes : existingDraft.notes;
+      existingDraft.followUpDate = followUpDate !== undefined ? followUpDate : existingDraft.followUpDate;
+      await existingDraft.save();
+      return res.status(200).json({
+        success: true,
+        message: 'Draft prescription updated',
+        prescription: existingDraft,
+      });
+    }
+
+    // Create prescription as DRAFT
     const prescription = await Prescription.create({
       appointmentId,
       doctorId: req.user._id,
+      clinicId: req.user.clinicId || appointment.clinicId || null,
       patientId,
       diagnosis: diagnosis || '',
       symptoms: symptoms || [],
@@ -81,6 +99,7 @@ const createPrescription = async (req, res) => {
       labTests: labTests || [],
       notes: notes || '',
       followUpDate: followUpDate || null,
+      status: 'DRAFT',
     });
 
     // Generate PDF
@@ -148,6 +167,14 @@ const updatePrescription = async (req, res) => {
       return res.status(403).json({
         success: false,
         message: 'Not authorized',
+      });
+    }
+
+    // Block updates on FINAL prescriptions
+    if (prescription.status === 'FINAL') {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot edit a finalized prescription',
       });
     }
 
@@ -436,6 +463,144 @@ const getDoctorPrescriptions = async (req, res) => {
   }
 };
 
+// ==========================================
+// @desc    Finalize a DRAFT prescription
+// @route   PATCH /api/prescriptions/:id/finalize
+// @access  Private (Doctor)
+// ==========================================
+const finalizePrescription = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const prescription = await Prescription.findById(id);
+    if (!prescription) {
+      return res.status(404).json({
+        success: false,
+        message: 'Prescription not found',
+      });
+    }
+
+    // Only the prescribing doctor can finalize
+    if (prescription.doctorId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized',
+      });
+    }
+
+    if (prescription.status === 'FINAL') {
+      return res.status(400).json({
+        success: false,
+        message: 'Prescription is already finalized',
+      });
+    }
+
+    // Check if a FINAL already exists for this appointment (app-level guard)
+    const existingFinal = await Prescription.findOne({
+      appointmentId: prescription.appointmentId,
+      status: 'FINAL',
+      _id: { $ne: prescription._id },
+    });
+    if (existingFinal) {
+      return res.status(400).json({
+        success: false,
+        message: 'A finalized prescription already exists for this appointment',
+      });
+    }
+
+    // Mark as FINAL
+    prescription.status = 'FINAL';
+    await prescription.save();
+
+    // Update appointment status to prescription_created
+    const appointment = await Appointment.findById(prescription.appointmentId);
+    if (appointment && !['completed', 'cancelled', 'no_show'].includes(appointment.status)) {
+      appointment.status = 'prescription_created';
+      appointment.auditLog.push({
+        action: 'prescription_created',
+        performedBy: req.user._id,
+        timestamp: new Date(),
+        details: 'Prescription finalized by doctor',
+        oldValue: appointment.status,
+        newValue: 'prescription_created',
+      });
+      await appointment.save();
+    }
+
+    // Generate PDF
+    try {
+      const doctor = await User.findById(req.user._id);
+      const patient = await User.findById(prescription.patientId);
+      const doctorProfile = await DoctorProfile.findOne({ userId: req.user._id });
+
+      const pdfBuffer = await generatePrescriptionPDF({
+        prescription,
+        doctor,
+        patient,
+        doctorProfile,
+      });
+
+      const fileName = `rx_${prescription._id}.pdf`;
+      const filePath = path.join(prescriptionsDir, fileName);
+      fs.writeFileSync(filePath, pdfBuffer);
+
+      prescription.pdfUrl = `/uploads/prescriptions/${fileName}`;
+      await prescription.save();
+    } catch (pdfError) {
+      console.error('PDF Generation Error (non-fatal):', pdfError.message);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Prescription finalized successfully',
+      prescription,
+    });
+  } catch (error) {
+    console.error('Finalize Prescription Error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to finalize prescription',
+      error: error.message,
+    });
+  }
+};
+
+// ==========================================
+// @desc    Get logged-in patient's own prescriptions
+// @route   GET /api/prescriptions/me
+// @access  Private (Patient)
+// ==========================================
+const getMyPrescriptions = async (req, res) => {
+  try {
+    const { page = 1, limit = 10 } = req.query;
+
+    const prescriptions = await Prescription.find({ patientId: req.user._id })
+      .populate('doctorId', 'name phone')
+      .populate('appointmentId', 'date startTime')
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(parseInt(limit));
+
+    const total = await Prescription.countDocuments({ patientId: req.user._id });
+
+    res.status(200).json({
+      success: true,
+      count: prescriptions.length,
+      total,
+      totalPages: Math.ceil(total / limit),
+      currentPage: parseInt(page),
+      prescriptions,
+    });
+  } catch (error) {
+    console.error('Get My Prescriptions Error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get prescriptions',
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   createPrescription,
   updatePrescription,
@@ -444,4 +609,6 @@ module.exports = {
   getPatientPrescriptions,
   downloadPrescriptionPDF,
   getDoctorPrescriptions,
+  finalizePrescription,
+  getMyPrescriptions,
 };

@@ -23,7 +23,7 @@ router.get('/dashboard', authorize('clinic_admin'), getClinicDashboard);
 
 // Doctor management (clinic_admin only)
 router.post('/doctors', authorize('clinic_admin'), addDoctor);
-router.get('/doctors', authorize('clinic_admin'), getClinicDoctors);
+router.get('/doctors', authorize('clinic_admin', 'receptionist'), getClinicDoctors);
 router.put('/doctors/:id', authorize('clinic_admin'), updateDoctor);
 router.delete('/doctors/:id', authorize('clinic_admin'), deleteDoctor);
 

@@ -107,7 +107,7 @@ const verifyOTP = async (req, res) => {
     if (!user) {
       // New user — create with patient role by default
       user = await User.create({
-        name: '',
+        name: 'New User', // Mongoose validation fails on empty string for required fields
         phone,
         role: 'patient',
         isPhoneVerified: true,
