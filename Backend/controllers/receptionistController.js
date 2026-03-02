@@ -10,7 +10,7 @@ const Queue = require('../models/Queue');
 // ==========================================
 const walkInEntry = async (req, res) => {
   try {
-    const { name, phone, gender, notes } = req.body;
+    const { name, phone, gender, notes, doctorId: requestedDoctorId } = req.body;
 
     if (!name || !phone) {
       return res.status(400).json({
@@ -21,10 +21,22 @@ const walkInEntry = async (req, res) => {
 
     // Determine doctor ID
     let doctorId;
-    if (req.user.role === 'receptionist') {
-      doctorId = req.user.createdBy;
+    if (requestedDoctorId) {
+      // Receptionist selected a specific doctor
+      doctorId = requestedDoctorId;
     } else if (req.user.role === 'doctor') {
       doctorId = req.user._id;
+    } else if (req.user.role === 'receptionist' && req.user.clinicId) {
+      // Find the first doctor in this clinic
+      const clinicDoctor = await DoctorProfile.findOne({ clinicId: req.user.clinicId });
+      if (clinicDoctor) {
+        doctorId = clinicDoctor.userId;
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: 'No doctors found in this clinic. Please select a doctor.',
+        });
+      }
     } else {
       return res.status(403).json({
         success: false,
@@ -78,14 +90,19 @@ const walkInEntry = async (req, res) => {
       .toString()
       .padStart(2, '0')}:${(endMinutes % 60).toString().padStart(2, '0')}`;
 
+    // Get clinicId from doctor's user
+    const doctorUser = await User.findById(doctorId).select('clinicId');
+    const clinicId = doctorUser?.clinicId || req.user.clinicId || null;
+
     // Create appointment
     const appointment = await Appointment.create({
       patientId: patient._id,
       doctorId,
+      clinicId,
       date: today,
       startTime,
       endTime,
-      status: 'confirmed',
+      status: 'checked_in',
       type: 'walk-in',
       paymentStatus: 'pending',
       amount: doctorProfile.consultationFee,

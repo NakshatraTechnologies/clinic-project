@@ -146,16 +146,16 @@ const LiveQueue = () => {
                     <div className="d-flex gap-2 mt-2">
                       {p.status === 'waiting' && (
                         <>
-                          <button className="btn btn-sm btn-outline-primary flex-fill" style={{ fontSize: '0.75rem' }} onClick={() => handleStatus(p.appointmentId, 'in-consultation')}>
+                          <button className="btn btn-sm btn-outline-primary flex-fill" style={{ fontSize: '0.75rem' }} onClick={() => handleStatus(p.appointmentId?._id || p.appointmentId, 'in-consultation')}>
                             🔵 Start Consult
                           </button>
-                          <button className="btn btn-sm btn-outline-danger" style={{ fontSize: '0.75rem' }} onClick={() => handleStatus(p.appointmentId, 'skipped')}>
+                          <button className="btn btn-sm btn-outline-danger" style={{ fontSize: '0.75rem' }} onClick={() => handleStatus(p.appointmentId?._id || p.appointmentId, 'skipped')}>
                             Skip
                           </button>
                         </>
                       )}
                       {p.status === 'in-consultation' && (
-                        <button className="btn btn-sm btn-success flex-fill" style={{ fontSize: '0.75rem' }} onClick={() => handleStatus(p.appointmentId, 'completed')}>
+                        <button className="btn btn-sm btn-success flex-fill" style={{ fontSize: '0.75rem' }} onClick={() => handleStatus(p.appointmentId?._id || p.appointmentId, 'completed')}>
                           ✅ Mark Completed
                         </button>
                       )}

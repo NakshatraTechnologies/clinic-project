@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { getReceptionistTodaySummary, receptionistCollectPayment, updateAppointmentStatus, getPrescriptionByAppointment } from '../../services/api';
+import { getReceptionistTodaySummary, receptionistCollectPayment, updateAppointmentStatus, getPrescriptionByAppointment, getTodayQueue, callNextPatient, updateQueueStatus } from '../../services/api';
 
 const STATUS_PIPELINE = ['booked', 'checked_in', 'in_consultation', 'prescription_created', 'completed'];
 const STATUS_OTHER = ['cancelled', 'no_show'];
@@ -38,8 +38,16 @@ const ReceptionistDashboard = () => {
   const [payForm, setPayForm] = useState({ paymentMethod: 'cash', amount: '', transactionId: '' });
   const [msg, setMsg] = useState('');
   const [rxMap, setRxMap] = useState({}); // appointmentId -> has prescription
+  const [queue, setQueue] = useState(null);
+  const [queuePatients, setQueuePatients] = useState([]);
+  const queueIntervalRef = useState(null);
 
-  useEffect(() => { fetchSummary(); }, []);
+  useEffect(() => {
+    fetchSummary();
+    fetchQueue();
+    const interval = setInterval(fetchQueue, 15000);
+    return () => clearInterval(interval);
+  }, []);
 
   const fetchSummary = async () => {
     try {
@@ -84,8 +92,42 @@ const ReceptionistDashboard = () => {
       await updateAppointmentStatus(aptId, newStatus);
       setMsg(`Status updated to ${newStatus.replace(/_/g, ' ')}`);
       fetchSummary();
+      fetchQueue();
     } catch (err) {
       setMsg(err.response?.data?.message || 'Failed to update status');
+    }
+  };
+
+  const fetchQueue = async () => {
+    try {
+      const res = await getTodayQueue();
+      setQueue(res.data.queue);
+      setQueuePatients(res.data.queue?.patients || []);
+    } catch (err) {
+      console.error('Queue fetch error:', err);
+    }
+  };
+
+  const handleCallNext = async () => {
+    try {
+      setMsg('');
+      const res = await callNextPatient();
+      setMsg(res.data.message || 'Next patient called!');
+      fetchQueue();
+    } catch (err) {
+      setMsg(err.response?.data?.message || 'No patients to call');
+    }
+  };
+
+  const handleQueueStatus = async (appointmentId, status) => {
+    try {
+      setMsg('');
+      await updateQueueStatus(appointmentId, { status });
+      setMsg(`Patient marked as ${status}`);
+      fetchQueue();
+      fetchSummary();
+    } catch (err) {
+      setMsg(err.response?.data?.message || 'Failed to update');
     }
   };
 
@@ -269,6 +311,83 @@ const ReceptionistDashboard = () => {
           </div>
         </div>
       )}
+
+      {/* Live Queue Section */}
+      <div className="mt-4">
+        <div className="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+          <h6 style={{ fontWeight: 700, margin: 0 }}>
+            <span className="material-symbols-outlined me-1" style={{ fontSize: '18px', color: '#2563eb', verticalAlign: 'middle' }}>queue</span>
+            Live Queue
+            <span className="badge ms-2" style={{ background: '#dbeafe', color: '#2563eb', fontSize: '0.7rem', fontWeight: 600 }}>
+              {queuePatients.filter(p => p.status === 'waiting').length} waiting
+            </span>
+          </h6>
+          <div className="d-flex gap-2">
+            <button className="btn btn-primary btn-sm d-flex align-items-center gap-1" onClick={handleCallNext}>
+              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>skip_next</span>
+              Call Next
+            </button>
+            <Link to="/receptionist/queue" className="btn btn-outline-primary btn-sm">
+              Full View
+            </Link>
+          </div>
+        </div>
+
+        {queuePatients.length === 0 ? (
+          <div className="card p-4 text-center" style={{ border: '1px solid var(--border)' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: '36px', color: 'var(--text-light)' }}>group_off</span>
+            <p style={{ color: 'var(--text-muted)', marginTop: '0.5rem', marginBottom: 0, fontSize: '0.875rem' }}>No patients in queue yet. Register a walk-in to start.</p>
+          </div>
+        ) : (
+          <div className="row g-2">
+            {queuePatients.filter(p => ['waiting', 'in-consultation'].includes(p.status)).map((p) => {
+              const qsc = {
+                waiting: { bg: '#fef3c7', color: '#d97706', icon: '⏳' },
+                'in-consultation': { bg: '#dbeafe', color: '#2563eb', icon: '🔵' },
+              };
+              const sc = qsc[p.status] || qsc.waiting;
+              return (
+                <div className="col-md-6 col-xl-4" key={p._id}>
+                  <div className="card" style={{ border: '1px solid var(--border)', overflow: 'hidden' }}>
+                    <div style={{ height: '3px', background: sc.color }}></div>
+                    <div className="p-3">
+                      <div className="d-flex justify-content-between align-items-center mb-2">
+                        <div className="d-flex align-items-center gap-2">
+                          <div style={{
+                            width: '32px', height: '32px', borderRadius: '50%',
+                            background: sc.color, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            color: '#fff', fontWeight: 800, fontSize: '0.75rem'
+                          }}>
+                            #{p.tokenNumber}
+                          </div>
+                          <div>
+                            <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{p.patientId?.name || `Patient #${p.tokenNumber}`}</div>
+                            {p.doctorName && <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Dr. {p.doctorName}</div>}
+                          </div>
+                        </div>
+                        <span className="badge" style={{ background: sc.bg, color: sc.color, fontWeight: 600, fontSize: '0.65rem' }}>
+                          {sc.icon} {p.status.replace('-', ' ')}
+                        </span>
+                      </div>
+                      <div className="d-flex gap-1">
+                        {p.status === 'waiting' && (
+                          <>
+                            <button className="btn btn-sm btn-outline-primary flex-fill" style={{ fontSize: '0.7rem', padding: '2px 6px' }} onClick={() => handleQueueStatus(p.appointmentId?._id || p.appointmentId, 'in-consultation')}>Start Consult</button>
+                            <button className="btn btn-sm btn-outline-danger" style={{ fontSize: '0.7rem', padding: '2px 6px' }} onClick={() => handleQueueStatus(p.appointmentId?._id || p.appointmentId, 'skipped')}>Skip</button>
+                          </>
+                        )}
+                        {p.status === 'in-consultation' && (
+                          <button className="btn btn-sm btn-success flex-fill" style={{ fontSize: '0.7rem', padding: '2px 6px' }} onClick={() => handleQueueStatus(p.appointmentId?._id || p.appointmentId, 'completed')}>✅ Complete</button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 };
