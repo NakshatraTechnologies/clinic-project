@@ -69,6 +69,7 @@ app.use('/api/admin', require('./routes/adminRoutes'));
 app.use('/api/prescriptions', require('./routes/prescriptionRoutes'));
 app.use('/api/clinic', require('./routes/clinicRoutes'));
 app.use('/api/inventory', require('./routes/inventoryRoutes'));
+app.use('/api/support-tickets', require('./routes/supportTicketRoutes'));
 
 // --- Public doctor search (no auth required) ---
 const DoctorProfile = require('./models/DoctorProfile');
