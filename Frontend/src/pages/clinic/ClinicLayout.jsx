@@ -31,6 +31,7 @@ const ClinicLayout = () => {
     { to: '/clinic/receptionists', icon: 'support_agent', label: 'Receptionists' },
     { to: '/clinic/inventory', icon: 'inventory_2', label: 'Inventory' },
     { to: '/clinic/settings', icon: 'settings', label: 'Settings' },
+    { to: '/clinic/support', icon: 'support_agent', label: 'Support' },
   ];
 
   return (

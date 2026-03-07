@@ -48,12 +48,14 @@ import StockMovementPage from './pages/clinic/StockMovement';
 import VendorList from './pages/clinic/VendorList';
 import InventoryAlerts from './pages/clinic/InventoryAlerts';
 import InventoryReports from './pages/clinic/InventoryReports';
+import ClinicSupport from './pages/clinic/ClinicSupport';
 
 // Receptionist
 import ReceptionistLayout from './pages/receptionist/ReceptionistLayout';
 import ReceptionistDashboard from './pages/receptionist/ReceptionistDashboard';
 import WalkInEntry from './pages/receptionist/WalkInEntry';
 import LiveQueue from './pages/receptionist/LiveQueue';
+import PatientSupport from './pages/patient/PatientSupport';
 
 function App() {
   return (
@@ -75,6 +77,7 @@ function App() {
                 <Route path="appointments" element={<MyAppointments />} />
                 <Route path="records" element={<MedicalRecords />} />
                 <Route path="profile" element={<PatientProfile />} />
+                <Route path="support" element={<PatientSupport />} />
               </Route>
 
               {/* Doctor Dashboard */}
@@ -111,6 +114,7 @@ function App() {
                 <Route path="inventory/alerts" element={<InventoryAlerts />} />
                 <Route path="inventory/reports" element={<InventoryReports />} />
                 <Route path="settings" element={<ClinicSettings />} />
+                <Route path="support" element={<ClinicSupport />} />
               </Route>
 
               {/* Receptionist */}
