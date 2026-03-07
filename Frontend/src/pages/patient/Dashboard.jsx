@@ -24,6 +24,7 @@ const Dashboard = () => {
     { to: '/dashboard/appointments', icon: 'calendar_month', label: 'My Appointments' },
     { to: '/dashboard/records', icon: 'description', label: 'Medical Records' },
     { to: '/dashboard/profile', icon: 'person', label: 'Profile' },
+    { to: '/dashboard/support', icon: 'support_agent', label: 'Support' },
   ];
 
   return (

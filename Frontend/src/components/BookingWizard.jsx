@@ -71,7 +71,11 @@ const BookingWizard = ({ doctor }) => {
     try {
       const dateStr = date.toLocaleDateString('en-CA');
       const res = await getDoctorSlots(doctorUserId, dateStr);
-      setSlots(res.data.availableSlots || []);
+      // Merge available + booked slots (exclude past), sorted by startTime
+      const available = (res.data.availableSlots || []).map(s => ({ ...s, status: 'available' }));
+      const booked = (res.data.bookedSlots || []).filter(s => s.status !== 'past').map(s => ({ ...s, status: 'booked' }));
+      const allSlots = [...available, ...booked].sort((a, b) => a.startTime.localeCompare(b.startTime));
+      setSlots(allSlots);
     } catch {
       setSlots([]);
     } finally {
@@ -80,7 +84,7 @@ const BookingWizard = ({ doctor }) => {
   };
 
   const handleBook = async () => {
-    if (!isAuthenticated) return navigate('/login');
+    if (!isAuthenticated) return navigate('/login', { state: { redirectTo: window.location.pathname } });
     if (!selectedSlot || !selectedDate) return;
     setBooking(true);
     setBookingError('');
@@ -92,6 +96,8 @@ const BookingWizard = ({ doctor }) => {
         startTime: selectedSlot.startTime,
         notes,
       });
+      // Re-fetch slots so the booked slot updates immediately for other viewers
+      fetchSlots(selectedDate);
       // Navigate to confirmation page
       navigate(`/booking-confirmation/${res.data.appointment._id}`, {
         state: { appointment: res.data.appointment, doctor }
@@ -248,14 +254,18 @@ const BookingWizard = ({ doctor }) => {
                     </h6>
                     <div className="d-flex flex-wrap gap-2">
                       {group.slots.map((slot) => {
+                        const isBooked = slot.status === 'booked';
                         const isSelected = selectedSlot?.startTime === slot.startTime;
                         return (
                           <button
                             key={slot.startTime}
-                            className={`time-slot-btn ${isSelected ? 'active' : ''}`}
-                            onClick={() => { setSelectedSlot(slot); setBookingError(''); }}
+                            className={`time-slot-btn ${isSelected ? 'active' : ''} ${isBooked ? 'booked' : ''}`}
+                            onClick={() => { if (!isBooked) { setSelectedSlot(slot); setBookingError(''); } }}
+                            disabled={isBooked}
+                            title={isBooked ? 'This slot is already booked' : `Book ${slot.startTime}`}
                           >
                             {slot.startTime}
+                            {isBooked && <span className="booked-label">Booked</span>}
                           </button>
                         );
                       })}

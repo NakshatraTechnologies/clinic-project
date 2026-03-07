@@ -38,4 +38,19 @@ router.put('/doctors/:doctorId/verify', verifyDoctor);
 router.get('/users', getAllUsers);
 router.put('/users/:userId/toggle-active', toggleUserActive);
 
+// Platform Settings
+const {
+  getSettings,
+  updateSettings,
+  createBroadcast,
+  getBroadcasts,
+  deleteBroadcast,
+} = require('../controllers/settingsController');
+
+router.get('/settings', getSettings);
+router.put('/settings', updateSettings);
+router.post('/settings/broadcast', createBroadcast);
+router.get('/settings/broadcasts', getBroadcasts);
+router.delete('/settings/broadcast/:id', deleteBroadcast);
+
 module.exports = router;

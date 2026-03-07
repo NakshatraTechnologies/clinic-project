@@ -133,4 +133,20 @@ export const deleteVendor = (id) => api.delete(`/inventory/vendors/${id}`);
 export const getInventoryAlerts = () => api.get('/inventory/alerts');
 export const getStockLedger = (params) => api.get('/inventory/reports/ledger', { params });
 
+// ========== Platform Settings APIs ==========
+export const getPlatformSettings = () => api.get('/admin/settings');
+export const updatePlatformSettings = (data) => api.put('/admin/settings', data);
+export const createBroadcast = (data) => api.post('/admin/settings/broadcast', data);
+export const getBroadcasts = (params) => api.get('/admin/settings/broadcasts', { params });
+export const deleteBroadcast = (id) => api.delete(`/admin/settings/broadcast/${id}`);
+
+// ========== Support Ticket APIs ==========
+export const createSupportTicket = (data) => api.post('/support-tickets', data);
+export const getMySupportTickets = (params) => api.get('/support-tickets', { params });
+export const getSupportTicketById = (id) => api.get(`/support-tickets/${id}`);
+export const replySupportTicket = (id, data) => api.post(`/support-tickets/${id}/reply`, data);
+export const updateSupportTicketStatus = (id, status) => api.put(`/support-tickets/${id}/status`, { status });
+export const getAllSupportTickets = (params) => api.get('/support-tickets', { params });
+export const getSupportTicketStats = () => api.get('/support-tickets/stats');
+
 export default api;
